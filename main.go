@@ -1,62 +1,59 @@
 package main
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
-	"net"
-	"os"
-	"strconv"
+	"log"
+	"net/http"
+
+	"golang.org/x/net/websocket"
+	"gopkg.in/mgo.v2"
 )
 
-type Message struct {
-	Msg    []byte
-	Sender *Client
-}
+func gameServer(ws *websocket.Conn) {
+	for {
+		msg := make([]byte, 512)
+		n, err := ws.Read(msg)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		fmt.Printf("Receive: %s\n", msg[:n])
 
-type Client struct {
-	Socket net.Conn
-	Name   string
-	Id     int
+		m, err := ws.Write(msg[:n])
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		fmt.Printf("Send: %s\n", msg[:m])
+	}
 }
 
 func main() {
-	clients := []Client{}
-	listener, err := net.Listen("tcp", ":27072")
+	session, err := mgo.Dial("localhost")
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.Error())
-		os.Exit(1)
+		panic(err)
 	}
+	defer session.Close()
 
-	messages := make(chan Message)
+	// Optional. Switch the session to a monotonic behavior.
+	session.SetMode(mgo.Monotonic, true)
 
-	go func() {
-		for message := range messages {
-			for _, client := range clients {
-				if client.Id != message.Sender.Id {
-					client.Socket.Write([]byte(message.Sender.Name + " <-- : " + string(message.Msg)))
-					fmt.Print(strconv.Itoa(message.Sender.Id) + " <-- : " + string(message.Msg))
-				}
-			}
-		}
-	}()
+	http.Handle("/connect", websocket.Handler(gameServer))
+	http.Handle("/", http.FileServer(http.Dir("./public")))
 
-	for {
-		newConn, err := listener.Accept()
-		newClient := Client{Socket: newConn, Id: len(clients), Name: "player_" + strconv.Itoa(len(clients))}
-		clients = append(clients, newClient)
-		if err != nil {
-			fmt.Fprint(os.Stderr, err.Error())
-		}
-		go func(client Client) {
-			for {
-				msg, err := bufio.NewReader(client.Socket).ReadBytes('\n')
-				if err != nil {
-					fmt.Fprint(os.Stderr, err.Error())
-					continue
-				}
-				fmt.Print(strconv.Itoa(client.Id) + " --> : " + string(msg))
-				messages <- Message{Msg: msg, Sender: &client}
-			}
-		}(newClient)
+	http.HandleFunc("/user", getUserHandler(session))
+
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func sendJSON(rw http.ResponseWriter, res interface{}) error {
+	textRes, err := json.Marshal(res)
+	if err != nil {
+		return err
 	}
+	headers := rw.Header()
+	headers.Add("Content-Type", "Application/json")
+	_, err = rw.Write(textRes)
+	return err
 }
