@@ -1,11 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 
+	"os"
+
+	"github.com/gorilla/mux"
+	"github.com/philbrookes/game-server/Config"
+	"github.com/philbrookes/game-server/HttpController"
 	"golang.org/x/net/websocket"
 	"gopkg.in/mgo.v2"
 )
@@ -30,7 +34,11 @@ func gameServer(ws *websocket.Conn) {
 }
 
 func main() {
-	session, err := mgo.Dial("localhost")
+	cfg, err := Config.Get(os.Getenv("GAME_ENVIRONMENT"))
+	if err != nil {
+		panic(err)
+	}
+	session, err := mgo.Dial(cfg.MongoHost)
 	if err != nil {
 		panic(err)
 	}
@@ -39,21 +47,13 @@ func main() {
 	// Optional. Switch the session to a monotonic behavior.
 	session.SetMode(mgo.Monotonic, true)
 
-	http.Handle("/connect", websocket.Handler(gameServer))
-	http.Handle("/", http.FileServer(http.Dir("./public")))
+	r := mux.NewRouter()
+	r.Handle("/connect", websocket.Handler(gameServer))
 
-	http.HandleFunc("/user", getUserHandler(session))
+	// user routes
+	r.HandleFunc("/user", HttpController.NewUser(session, cfg)).Methods("GET")
+	r.HandleFunc("/user/{id}", HttpController.NewUser(session, cfg)).Methods("GET", "PUT", "POST", "DELETE")
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-func sendJSON(rw http.ResponseWriter, res interface{}) error {
-	textRes, err := json.Marshal(res)
-	if err != nil {
-		return err
-	}
-	headers := rw.Header()
-	headers.Add("Content-Type", "Application/json")
-	_, err = rw.Write(textRes)
-	return err
+	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("/public"))))
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
