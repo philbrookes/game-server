@@ -1,4 +1,4 @@
-package HttpController
+package httpController
 
 import (
 	"log"
@@ -12,12 +12,12 @@ import (
 
 	"strconv"
 
-	"github.com/philbrookes/game-server/Config"
-	"github.com/philbrookes/game-server/User"
+	"github.com/philbrookes/game-server/config"
+	"github.com/philbrookes/game-server/user"
 )
 
 // NewUser returns a new user controller for handling requests related to single user
-func NewUser(session *mgo.Session, cfg *Config.Config) http.HandlerFunc {
+func NewUser(session *mgo.Session, cfg *config.Config) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		sender, err := GetSender(cfg.OutputFormat)
 		if err != nil {
@@ -36,38 +36,38 @@ func NewUser(session *mgo.Session, cfg *Config.Config) http.HandlerFunc {
 	}
 }
 
-func getUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *Config.Config, sender Sender) {
+func getUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *config.Config, sender Sender) {
 	log.Print("getting users")
 
 	params := mux.Vars(r)
 	id, _ := strconv.Atoi(params["id"])
-	payload := User.User{
+	payload := user.User{
 		ID: id,
 	}
-	users, err := User.GetUsers(payload, session, cfg)
+	users, err := user.GetUsers(payload, session, cfg)
 	if err != nil {
 		log.Println(err)
 		sender(rw, err.Error())
 		return
 	}
 
-	sender(rw, User.PublicFilter(users))
+	sender(rw, user.PublicFilter(users))
 }
 
-func updateUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *Config.Config, sender Sender) {
+func updateUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *config.Config, sender Sender) {
 	log.Println("Updating users")
 }
 
-func createUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *Config.Config, sender Sender) {
+func createUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *config.Config, sender Sender) {
 	log.Println("Creating users")
 
 	decoder := json.NewDecoder(r.Body)
-	user := User.User{}
-	if err := decoder.Decode(&user); err != nil {
+	newUser := user.User{}
+	if err := decoder.Decode(&newUser); err != nil {
 		log.Fatalln(err)
 	}
 
-	user, err := User.CreateUser(user, session, cfg)
+	user, err := user.CreateUser(newUser, session, cfg)
 
 	if err != nil {
 		sender(rw, err.Error())
@@ -78,13 +78,13 @@ func createUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, c
 	sender(rw, user)
 }
 
-func deleteUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *Config.Config, sender Sender) {
+func deleteUser(rw http.ResponseWriter, r *http.Request, session *mgo.Session, cfg *config.Config, sender Sender) {
 	log.Println("Deleting users")
 }
 
 func getUsers(rw http.ResponseWriter, r *http.Request, userCollection *mgo.Collection) {
 	log.Println("Getting users")
-	users := []User.User{}
+	users := user.Users{}
 	userCollection.Find(nil).All(&users)
 	if err := sendJSON(rw, users); err != nil {
 		log.Fatalln(err)

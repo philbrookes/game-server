@@ -1,9 +1,9 @@
-package User
+package user
 
 import (
 	"log"
 
-	"github.com/philbrookes/game-server/Config"
+	"github.com/philbrookes/game-server/config"
 	"golang.org/x/crypto/bcrypt"
 	mgo "gopkg.in/mgo.v2"
 )
@@ -34,7 +34,7 @@ func PublicFilter(users Users) Users {
 type Users []User
 
 //GetUsers looks in the users table in the session for users as defined in the payload
-func GetUsers(payload User, session *mgo.Session, cfg *Config.Config) (Users, error) {
+func GetUsers(payload User, session *mgo.Session, cfg *config.Config) (Users, error) {
 	users := Users{}
 	err := session.DB(cfg.DatabaseName).C(cfg.UserTable).Find(payload).All(&users)
 	if err != nil {
@@ -45,7 +45,7 @@ func GetUsers(payload User, session *mgo.Session, cfg *Config.Config) (Users, er
 }
 
 //CreateUser will create a user defined in the payload in the users table in the provided session
-func CreateUser(user User, session *mgo.Session, cfg *Config.Config) (User, error) {
+func CreateUser(user User, session *mgo.Session, cfg *config.Config) (User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatalln(err)

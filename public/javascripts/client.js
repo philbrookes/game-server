@@ -10,7 +10,8 @@ function initClient(socket){
 }
 
 function onmessageHandler(event){
-    console.log("message received");
+    console.log("message received: ");
+    console.log(event.data);
 }
 
 function onopenHandler(){
